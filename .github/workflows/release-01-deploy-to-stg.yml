@@ -219,7 +219,7 @@ jobs:
 
   deploy:
     needs: prepare
-    uses: ats-org1/fr-mpp-shared-workflows/.github/workflows/_reusable-deploy-stg.yml@main
+    uses: ats-org1/fr-mpp-shared-workflows/.github/workflows/_reusable-deploy-stg.yml@internal/e2e-validation
     with:
       solution_name: ${{ inputs.solution_name }}
       source_ref: ${{ needs.prepare.outputs.source_ref }}
