@@ -1,0 +1,109 @@
+# DEV から保存 (STG には流さない)
+#
+# 【何をする workflow か】
+# DEV 環境の今の状態を PP から Unmanaged と Managed の両形式で書き出し、差異を保ったまま
+# 1 つのフォルダへ統合して `main` branch に commit します。ここで保存したソースが、
+# 以降の配布物の生成元になります。
+# 加えて、Solution の定義 (EnvironmentVariableDefinitions / ConnectionReferences) と
+# 開発環境の現在の値から
+# `src/PP-Solutions/<solution_name>/settings/deployment-settings.dev.json` を生成します。
+# このファイルを流用して、STG 環境向けと PRD 環境向けの設定を作ります。
+# STG / PRD 環境へのデプロイは行いません。
+#
+# 【バージョンを上げない】
+# 本ボタンはバージョンを上げません。採番は「STG 環境へデプロイ」で行い、
+# 基準は STG 環境の現行バージョンです。したがって何回保存しても版は消費されず、
+# 日々のスナップショットの保存にも使えます。
+#
+# 【実行中は開発環境を編集しない】
+# 2 回の書き出しの間に開発環境が変わると、保存されるソースが開発環境のどの時点とも
+# 一致しなくなります。本 workflow はこれを検出して保存を中止します。
+#
+# 【品質チェック】
+# 保存の直前に Solution Checker を実行し、Critical 違反があれば commit せずに停止します。
+# 検査に数分かかるため、保存の完了までに時間を見てください。
+#
+# 【誰が押すか】
+#   リリースオペレータ (デプロイ操作、STG / PRD の接続情報作成、動作確認を担う役割。
+#   案件によっては開発ベンダーが担う)。アプリ開発者は GitHub にアクセスしません。
+#
+# 【こういう時に使う】
+#   - STG へデプロイする前 (デプロイはここで保存したソースから行われる)
+#   - DEV で Solution に Env Var / Connection Reference を追加・変更した直後
+#   - 大改修の前に今の状態を残しておきたい
+#   - デモ前のバックアップ
+#   - 「今日ここまで作った」 という週次の作業記録
+#
+# 【過去状態への復元】
+#   保存された各状態は commit として残ります。
+#   開発環境を過去の保存時点へ戻すには「DEV を過去の保存時点へ戻す」(90 番台) を使います。
+#   PRD 環境を過去の状態へ戻す場合は、旧い版を再デプロイするのではなく、開発環境を戻してから
+#   通常のリリース経路を新しいバージョンとして流し直します (前進復旧)。
+#   本番デプロイは PRD 環境の現行版より古い版を受け付けません。
+#
+# 【前提】
+#   - DEV 環境で対象 Solution が開発済み (unmanaged)
+#
+# 【処理の実体】
+# 書き出しの本体は fr-mpp-shared-workflows の `_reusable-export.yml` にあり、本ファイルは入力の
+# 検証だけを担う。実行結果の要約も共通ワークフロー側が出す。
+# 中央へ寄せているのは、Entra ID のフェデレーション認証情報が 1 SPN あたり 20 件までで、案件 repo ごとに
+# 追加する構成では枯渇するため。共通ワークフロー 1 本につき 1 件で全案件 repo から使える。
+#
+# STEP-OWNER: 表 2 Step 08.6 (Export「保存のみ」) と設定ファイルの生成を本ボタン 1 つで吸収する。
+
+name: '1. DEV から保存'
+
+run-name: "DEV 保存: ${{ inputs.solution_name }} (by @${{ github.actor }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      solution_name:
+        description: "保存する Solution の Unique Name (DEV で開発中のもの)。英数字と _ のみ。例: SampleSolution"
+        required: true
+        type: string
+      reason:
+        description: "保存理由 (後で見て分かるように) - 例: '大改修前のバックアップ' / '6/20 デモ用に凍結'"
+        required: true
+        type: string
+
+permissions:
+  contents: write   # 共通ワークフローが書き出したソースを main へ commit するため
+  id-token: write   # 共通ワークフローが OIDC を使うため
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    # 入力を見るだけの job なので、workflow 全体に宣言した共通ワークフロー向けの権限を届かせない。
+    permissions: {}
+    steps:
+      # 実行画面の "Use workflow from" では branch だけでなくタグも選べる。本設計はデプロイのたびに
+      # タグを作るため選択肢は増え続ける。選ばれた参照先の定義がそのまま走るので、main 以外はここで止める。
+      - name: Validate the workflow reference
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$WORKFLOW_REF" != "refs/heads/main" ]; then
+            echo "::error::この操作は main からのみ実行できます。Run workflow の 'Use workflow from' で main を選び直してください。受け取り: '${WORKFLOW_REF}'"
+            exit 1
+          fi
+
+      # tag 名と src/PP-Solutions/<name>/ のパスにそのまま展開する値なので、安全な識別子に限る (- は tag の分解を壊し、/ や .. は書き込み先を逃がす)。
+      - name: Validate solution_name
+        env:
+          SOLUTION_NAME: ${{ inputs.solution_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SOLUTION_NAME" =~ ^[A-Za-z0-9_]+$ ]]; then
+            echo "::error::solution_name に使えるのは英数字とアンダースコアだけです (ハイフン・空白・記号は不可)。受け取り: '${SOLUTION_NAME}'"
+            exit 1
+          fi
+
+  export:
+    needs: guard
+    uses: ats-org1/fr-mpp-shared-workflows/.github/workflows/_reusable-export.yml@main
+    with:
+      solution_name: ${{ inputs.solution_name }}
+      reason: "[保存] ${{ inputs.reason }}"

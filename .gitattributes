@@ -1,0 +1,12 @@
+# 配布物のテキストファイルは改行コードを LF に統一する。
+# Windows 上で編集しても、リポジトリと作業ツリーの双方で LF を保つ。
+* text=auto eol=lf
+
+# バイナリは変換しない
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.zip binary
+*.msapp binary
+*.pdf binary

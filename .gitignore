@@ -1,0 +1,26 @@
+# Power Platform CLI / pac unpack の作業ファイル
+# 除外は出力先フォルダだけに限定する。拡張子で除外すると、キャンバスアプリの実体 (*.msapp) のような
+# Solution の構成要素そのものまで記録されず、デプロイ時の配布物の生成で停止する。
+out/
+.pac/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 秘匿系（万一の漏洩防止）
+*.pfx
+*.snk
+*.key
+.env
+.env.*
+
+# ログ
+*.log
+
+# --- MS internal: AI agent instructions (not delivered to FR) ---
+/AGENTS.md
+/.github/copilot-instructions.md
+/.github/instructions/

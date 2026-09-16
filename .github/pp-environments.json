@@ -1,0 +1,13 @@
+{
+  "environments": {
+    "dev": {
+      "url": "REPLACE_WITH_DEV_ENV_URL"
+    },
+    "stg": {
+      "url": "REPLACE_WITH_STG_ENV_URL"
+    },
+    "prd": {
+      "url": "REPLACE_WITH_PRD_ENV_URL"
+    }
+  }
+}

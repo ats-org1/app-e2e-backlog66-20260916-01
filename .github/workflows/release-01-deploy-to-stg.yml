@@ -1,0 +1,227 @@
+# STG 環境へデプロイ
+#
+# 【何をする workflow か】
+# 「DEV から保存」でリポジトリに保存済みのソースから配布物を生成し、STG 環境へ取り込みます。
+# 開発環境へは接続しません。保存とデプロイの間に開発環境を編集しても、配布されるものは変わりません。
+#
+# 【バージョン】
+# 採番はこの操作で行います。基準は STG 環境に入っている現行バージョンで、リポジトリのソースに
+# 記録されているバージョンは使いません。案件リポジトリを払い出し直しても版は前進します。
+#
+# 【設定ファイル】
+# STG 環境向け・PRD 環境向けの設定は、この操作の入力欄で任意に指定します。指定しなければ既存の内容を
+# 更新しません。指定した場合は取り込んでからデプロイするため、付与されるタグは設定を含んだ時点を指します。
+# 流用元は「DEV から保存」が生成する `deployment-settings.dev.json` です。値には開発環境の値が入っているので、上位環境の値へ書き換えてください。
+#
+# 【タグとリリース】 STG へ配った版の識別子として、毎回タグを 1 本作ります。
+# 候補にしない場合は `<solution>-v<version>-stg`、`create_release_candidate` をチェックした
+# 場合は `<solution>-v<version>-rc` となり、そのタグへ managed zip を添付した Release を
+# 事前リリースとして作ります。この Release がある版だけが「PRD 環境へデプロイ」の対象になります。
+# 接尾辞のない `<solution>-v<version>` は PRD 環境へ取り込んだリリース版のために予約されています。
+#
+# 【誰が押すか】 リリースオペレータ。STG デプロイの承認ゲート (Environment `stg`) は任意で、
+# 払い出し時に STG リリース承認者を指定した案件だけ承認待ちになります。
+#
+# 前提:
+#   - 事前に「DEV から保存」を実行済 (= 最新のソースが main に commit 済)
+#   - 初回 or Connection 再作成時は本操作の設定入力欄に値を埋めた JSON を貼り付ける
+#     (未入力のままだと事前チェックでブロックされます)
+#
+# 【処理の実体】
+# 本ファイルは入力の検証と設定の取り込み、デプロイ対象の確定だけを担う。採番・配布物の生成・STG への取り込み・
+# タグ付与は fr-mpp-shared-workflows の `_reusable-deploy-stg.yml` にある。承認ゲート (Environment `stg`) もそちら側で宣言されている。
+# 中央へ寄せているのは、Entra ID のフェデレーション認証情報が 1 SPN あたり 20 件までで、案件 repo ごとに
+# 追加する構成では枯渇するため。共通ワークフロー 1 本につき 1 件で全案件 repo から使える。
+
+name: '2. STG 環境へデプロイ'
+
+run-name: "STG デプロイ: ${{ inputs.solution_name }}${{ inputs.create_release_candidate && ' (リリース候補として作成)' || '' }} (by @${{ github.actor }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      solution_name:
+        description: "デプロイする Solution の Unique Name。英数字と _ のみ。例: SampleSolution"
+        required: true
+        type: string
+      reason:
+        description: "変更概要 (リリース内容の確認用) - 200 字程度。例: 承認フローの分岐条件を追加"
+        required: true
+        type: string
+      bump_type:
+        description: "バージョンの上げ幅。基準は STG 環境の現行バージョン"
+        required: true
+        type: choice
+        default: "patch"
+        options:
+          - patch
+          - minor
+          - major
+      create_release_candidate:
+        description: "この版をリリース候補にする。チェックした場合だけ、PRD デプロイの対象になる成果物付きの Release を作成する (タグはどちらの場合でも作られ、チェックの有無で -rc / -stg に分かれる)"
+        required: false
+        type: boolean
+        default: false
+      settings_json_stg:
+        description: "STG 環境向けの接続情報・環境変数 (JSON)。空なら既存の内容を更新しない。流用元は「DEV から保存」が生成する deployment-settings.dev.json (開発環境の値入り。上位環境の値へ書き換える)"
+        required: false
+        type: string
+      settings_json_prd:
+        description: "PRD 環境向けの接続情報・環境変数 (JSON)。空なら既存の内容を更新しない。リリース候補にする場合はここで入れておく"
+        required: false
+        type: string
+
+permissions:
+  contents: write        # 設定ファイルを main へ commit し、共通ワークフローがタグと Release を作るため
+  id-token: write        # 共通ワークフローが OIDC を使うため
+
+# 直列化は Solution 単位にする。本操作は承認待ちを含む取り込みまでを 1 つの実行で抱えるため、
+# リポジトリ単位にすると別の Solution のデプロイが待たされ、待機中のものは後続に押し出されて消える。
+concurrency:
+  group: release-01-${{ github.repository }}-${{ inputs.solution_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    # 設定ファイルの commit にしか使わないので、workflow 全体に宣言した OIDC の権限を届かせない。
+    permissions:
+      contents: write
+    outputs:
+      source_ref: ${{ steps.resolve.outputs.sha }}
+    steps:
+      # 実行画面の "Use workflow from" では branch だけでなくタグも選べる。本設計はデプロイのたびに
+      # タグを作るため選択肢は増え続ける。選ばれた参照先の定義がそのまま走るので、main 以外はここで止める。
+      - name: Validate the workflow reference
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$WORKFLOW_REF" != "refs/heads/main" ]; then
+            echo "::error::この操作は main からのみ実行できます。Run workflow の 'Use workflow from' で main を選び直してください。受け取り: '${WORKFLOW_REF}'"
+            exit 1
+          fi
+
+      # tag 名と src/PP-Solutions/<name>/ のパスにそのまま展開する値なので、安全な識別子に限る (- は tag の分解を壊し、/ や .. は書き込み先を逃がす)。
+      - name: Validate inputs
+        env:
+          SOLUTION_NAME: ${{ inputs.solution_name }}
+          SETTINGS_STG: ${{ inputs.settings_json_stg }}
+          SETTINGS_PRD: ${{ inputs.settings_json_prd }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SOLUTION_NAME" =~ ^[A-Za-z0-9_]+$ ]]; then
+            echo "::error::solution_name に使えるのは英数字とアンダースコアだけです (ハイフン・空白・記号は不可)。受け取り: '${SOLUTION_NAME}'"
+            exit 1
+          fi
+          for PAIR in "STG 環境:${SETTINGS_STG}" "PRD 環境:${SETTINGS_PRD}"; do
+            LABEL="${PAIR%%:*}"
+            VALUE="${PAIR#*:}"
+            [ -z "$VALUE" ] && continue
+            if ! echo "$VALUE" | jq -e 'type == "object"' > /dev/null 2>&1; then
+              echo "::error::${LABEL}向けの設定が JSON オブジェクトとして読めません。deployment-settings.dev.json をコピーして値だけを書き換えた内容を貼り付けてください。"
+              exit 1
+            fi
+          done
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      # 設定は配布物の生成前に取り込む。タグはこの commit へ付くため、
+      # タグが指す内容と実際に適用した設定が一致する。
+      - name: Apply settings and commit
+        id: settings
+        env:
+          SOLUTION_NAME: ${{ inputs.solution_name }}
+          SETTINGS_STG: ${{ inputs.settings_json_stg }}
+          SETTINGS_PRD: ${{ inputs.settings_json_prd }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          DIR="src/PP-Solutions/${SOLUTION_NAME}/settings"
+          if [ ! -d "$DIR" ]; then
+            echo "::error::$DIR が見つかりません。先に「DEV から保存」を実行してください。"
+            exit 1
+          fi
+          UPDATED=""
+          for PAIR in "stg:${SETTINGS_STG}" "prd:${SETTINGS_PRD}"; do
+            ENV_NAME="${PAIR%%:*}"
+            VALUE="${PAIR#*:}"
+            [ -z "$VALUE" ] && continue
+            FILE="${DIR}/deployment-settings.${ENV_NAME}.json"
+            # 差分を見やすくするため整形して書き出す
+            echo "$VALUE" | jq '.' > "$FILE"
+            git add "$FILE"
+            UPDATED="${UPDATED} ${ENV_NAME}"
+          done
+          if [ -z "$UPDATED" ]; then
+            echo "::notice::設定の指定がないため、既存の内容をそのまま使います。"
+            echo "updated=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --staged --quiet; then
+            echo "::notice::指定された設定は既存と同一でした。commit をスキップします。"
+            echo "updated=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(settings): update deployment settings (${UPDATED# }) for ${SOLUTION_NAME} - ${REASON}"
+          for i in 1 2 3; do
+            if git pull --rebase origin main && git push origin main; then
+              echo "::notice::設定を main へ反映しました (attempt $i):${UPDATED}"
+              echo "updated=${UPDATED# }" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::warning::push 失敗 (attempt $i)、retry します"
+            sleep 5
+          done
+          echo "::error::main への push に 3 回失敗しました。他の操作と同時に実行していないか確認してください。"
+          exit 1
+
+      # デプロイ対象をこの時点で確定させ、以降の処理はこの commit だけを見る。
+      - name: Resolve the deploy target commit
+        id: resolve
+        run: |
+          set -euo pipefail
+          SHA=$(git rev-parse HEAD)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "::notice::デプロイ対象: ${SHA}"
+
+      - name: Summary
+        if: always()
+        env:
+          SOURCE_REF: ${{ steps.resolve.outputs.sha }}
+          UPDATED: ${{ steps.settings.outputs.updated }}
+          SOLUTION_NAME: ${{ inputs.solution_name }}
+          REASON: ${{ inputs.reason }}
+          BUMP_TYPE: ${{ inputs.bump_type }}
+          CREATE_RC: ${{ inputs.create_release_candidate }}
+        run: |
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${SOURCE_REF}"
+          {
+            echo "## デプロイ対象の確定"
+            echo ""
+            echo "- Solution: \`${SOLUTION_NAME}\`"
+            echo "- 変更概要: ${REASON}"
+            echo "- バージョンの上げ幅: ${BUMP_TYPE} (基準は STG 環境の現行バージョン)"
+            echo "- リリース候補にする: ${CREATE_RC}"
+            if [ -n "${UPDATED:-}" ]; then
+              echo "- 取り込んだ設定: ${UPDATED}"
+            else
+              echo "- 取り込んだ設定: なし (既存の内容を使用)"
+            fi
+            echo "- デプロイ対象: [${SOURCE_REF}](${COMMIT_URL})"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: prepare
+    uses: ats-org1/fr-mpp-shared-workflows/.github/workflows/_reusable-deploy-stg.yml@main
+    with:
+      solution_name: ${{ inputs.solution_name }}
+      source_ref: ${{ needs.prepare.outputs.source_ref }}
+      bump_type: ${{ inputs.bump_type }}
+      create_release_candidate: ${{ inputs.create_release_candidate }}

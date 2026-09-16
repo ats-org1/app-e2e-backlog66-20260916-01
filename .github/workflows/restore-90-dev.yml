@@ -1,0 +1,106 @@
+# DEV を過去の保存時点へ戻す (例外時の操作)
+#
+# 【何をする workflow か】
+# 指定した Solution を、指定した時点 (リリースタグまたは commit) のソースへ戻します。
+# その時点のソースを開発環境へ取り込んだうえで、その時点のソースに無い構成要素を
+# 開発環境から削除します。指定した Solution 以外には触れません。
+#
+# 【通常のリリース手順ではありません】
+# PRD 環境で問題が起きたときの起点として使います。PRD 環境を直接戻す操作ではありません。
+# 開発環境を戻してから、通常のリリース経路 (保存 → STG → PRD) を新しいバージョンとして
+# 流し直します (前進復旧)。
+#
+# 【消えるもの】
+# 戻し先の時点に無い構成要素は環境から削除されます。削除した構成要素に入っていた
+# データは戻りません。残すと次の保存でリポジトリへ入り、STG 環境・PRD 環境へ再び
+# 流れてしまうため、完全に一致させることを優先しています。
+#
+# 【途中で止まる場合】
+# 止まり方は 3 通りあり、止まった位置で開発環境の状態が違います。
+#   1. 削除できない構成要素を事前確認で検出した場合は、削除を 1 件も行わずに停止します。
+#      やり直しによる手戻りはありません。
+#   2. 事前確認は依存関係だけを見るため、別の理由で削除が拒まれると途中まで削除した状態で
+#      止まります。どこまで消えたかは実行結果に出ます。
+#   3. 削除まで終わった後の完了確認で止まることもあり、そのときは消し損ねが残っています。
+# 2 と 3 は「DEV から保存」を実行すると上位環境へ流出します。いずれの場合も、対処は基盤管理
+# 担当へ問い合わせてください。
+#
+# 【誰が押すか】
+#   リリースオペレータ。承認ゲートはありません。理由の入力を必須とし、実行者と戻し先を
+#   実行履歴に残します。
+#
+# 【前提】
+#   - 戻し先の時点で「DEV から保存」が実行済みであること (その時点のソースが必要)
+#
+# 【処理の実体】
+# 復元の本体は fr-mpp-shared-workflows の `_reusable-restore-dev.yml` にあり、本ファイルは
+# 入力の検証だけを担う。削除した構成要素の一覧を含む実行結果の要約も共通ワークフロー側が出す。
+# 中央へ寄せているのは、Entra ID のフェデレーション認証情報が 1 SPN あたり 20 件までで、案件 repo ごとに
+# 追加する構成では枯渇するため。共通ワークフロー 1 本につき 1 件で全案件 repo から使える。
+
+name: '90. DEV を過去の保存時点へ戻す'
+
+run-name: "90. DEV 復元: ${{ inputs.solution_name }} → ${{ inputs.source_ref }} (by @${{ github.actor }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      solution_name:
+        description: "戻す Solution の Unique Name。英数字と _ のみ。例: SampleSolution"
+        required: true
+        type: string
+      source_ref:
+        description: "戻し先。リリースタグ (例: SampleSolution-v1.2.3) か commit SHA"
+        required: true
+        type: string
+      reason:
+        description: "復元理由 (後で見て分かるように) - 例: 'PRD 環境の障害の切り分けのため 1.2.3 時点へ戻す'"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write   # 共通ワークフローが OIDC を使うため
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    # 入力を見るだけの job なので、workflow 全体に宣言した共通ワークフロー向けの権限を届かせない。
+    permissions: {}
+    steps:
+      # 実行画面の "Use workflow from" では branch だけでなくタグも選べる。本設計はデプロイのたびに
+      # タグを作るため選択肢は増え続ける。選ばれた参照先の定義がそのまま走るので、main 以外はここで止める。
+      # 戻し先の指定は入力欄 `source_ref` で行う。実行画面の選択欄ではない。
+      - name: Validate the workflow reference
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$WORKFLOW_REF" != "refs/heads/main" ]; then
+            echo "::error::この操作は main からのみ実行できます。戻し先は入力欄 source_ref で指定し、Run workflow の 'Use workflow from' は main のままにしてください。受け取り: '${WORKFLOW_REF}'"
+            exit 1
+          fi
+
+      # src/PP-Solutions/<name>/ のパスと checkout の対象にそのまま展開する値なので、安全な識別子に限る。
+      - name: Validate inputs
+        env:
+          SOLUTION_NAME: ${{ inputs.solution_name }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SOLUTION_NAME" =~ ^[A-Za-z0-9_]+$ ]]; then
+            echo "::error::solution_name に使えるのは英数字とアンダースコアだけです (ハイフン・空白・記号は不可)。受け取り: '${SOLUTION_NAME}'"
+            exit 1
+          fi
+          if [[ ! "$SOURCE_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$ ]] || [[ "$SOURCE_REF" == *".."* ]]; then
+            echo "::error::戻し先の形式が不正です。リリースタグか commit SHA を指定してください (受け取り: '${SOURCE_REF}')"
+            exit 1
+          fi
+
+  restore:
+    needs: guard
+    uses: ats-org1/fr-mpp-shared-workflows/.github/workflows/_reusable-restore-dev.yml@main
+    with:
+      solution_name: ${{ inputs.solution_name }}
+      source_ref: ${{ inputs.source_ref }}
+      reason: ${{ inputs.reason }}

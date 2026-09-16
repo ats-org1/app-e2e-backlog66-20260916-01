@@ -1,0 +1,132 @@
+# PRD 環境へデプロイ
+#
+# 【何をする workflow か】
+# 「STG 環境へデプロイ」をリリース候補として実行したときに作られた Release の managed zip を、
+# そのまま PRD 環境へ取り込みます。ビルドは行いませんので、STG 環境へ配ったのと
+# 同一のバイナリが PRD 環境へ流れます。
+#
+# 内部では以下の順に実行されます。
+#   1. 事前チェック: 指定したバージョンのリリース候補 / 成果物 / PRD 環境向け設定の検証と、
+#      PRD 環境の現行版との前後関係の検査
+#   2. Release から managed Solution zip を取得
+#   3. Environment `prd` の承認ゲート (任意。下記参照)
+#   4. PRD 専用 SPN で OIDC ログイン → PRD 環境へ import
+#
+# 【PRD 承認ゲートは任意】
+#   Environment `prd` の reviewer は払い出し時に指定する。
+#   - 指定あり: PRD リリース承認者の承認待ちになり、承認後に import が走る
+#   - 指定なし: 承認待ちなしでそのまま import が走る。リリース可否の判断を
+#     JIRA / ServiceNow など GitHub の外側で行う案件を想定している。
+#     この場合は `reason` に外部承認のチケット番号 / URL を書き残すことを推奨する。
+#
+# 【誰が押すか】 リリースオペレータ。承認ゲートを使う案件では、押下者とは別の
+# PRD リリース承認者が Environment `prd` で承認する。
+#
+# 【操作】
+#   1. 先に「STG 環境へデプロイ」をリリース候補として実行し、
+#      `<solution>-v<version>-rc` タグに成果物付き Release が作られていること
+#   2. PRD 環境向けの接続情報・環境変数は、その「STG 環境へデプロイ」の入力欄で取り込んでおく
+#   3. Actions タブ → 「PRD 環境へデプロイ」 → "Run workflow"
+#   4. inputs (solution_name / version / reason) を入力して Run
+#   5. 承認ゲートありの案件は Environment `prd` の承認待ち → 承認後 deploy 実行
+#
+# 【version に何を指定するか】
+#   リリース候補のバージョン番号だけを指定する (例: `0.1.0`)。
+#   値は「STG 環境へデプロイ」の実行結果画面と、作られたリリース候補の説明欄に掲示されている。
+#   tag 名 (`<solution>-v<version>-rc`) はワークフロー側が組み立てるため、手入力しない。
+#   候補にしなかった版 (`-stg`) は対象にできない。PRD 環境へ出せるかどうかは、
+#   その版に成果物付き Release があるかで判定される。
+#   Version は Solution 単位で管理されるため、tag 名にも Solution 名を含める (06-versioning-tags.md §4.4)。
+#
+# 【取り込めないバージョン】
+#   PRD 環境の現行版と同じか古い版は、事前チェックで承認待ちの手前に停止する。
+#   過去の版へ戻したい場合は本番デプロイを使わず、前進復旧 (「DEV を過去の保存時点へ戻す」で
+#   開発環境を戻し、通常のリリース経路で新しいバージョンとして流し直す) で対応する。
+#
+# 【前提】
+#   - リリース候補が作成済 (= GitHub Release <solution>-v<version>-rc が存在)
+#   - PRD 環境向け設定 (deployment-settings.prd.json) に、値も既定値もない項目がないこと
+#     (既定値を持つ環境変数は空のままでも進められる。既定値もない場合は事前チェックで停止するので、
+#      「STG 環境へデプロイ」で値を埋めてリリース候補を作り直す)
+#
+# 【完了後】
+#   - PRD import 完了時点で、リリース候補と同じコミットに `<solution>-v<version>`
+#     (接尾辞なし = リリース版) の annotated tag が自動付与されリリース完了。
+#     PRD 環境側に Release は作らない (成果物はリリース候補の Release 1 か所だけに保持する)
+#
+# 【処理の実体】
+# 本ファイルは入力の検証だけを担い、事前チェック・承認ゲート・PRD への取り込み・リリース版タグの付与は
+# fr-mpp-shared-workflows の `_reusable-deploy-prd.yml` にある。Environment `prd` の宣言もそちら側で、承認者は
+# 本 repo の Environments 設定で決まる。中央へ寄せているのは、Entra ID のフェデレーション認証情報が 1 SPN あたり
+# 20 件までで、案件 repo ごとに追加する構成では枯渇するため。PRD 専用 SPN を使い、DEVSTG SPN は渡さない。
+
+name: '3. PRD 環境へデプロイ'
+
+run-name: "PRD デプロイ: ${{ inputs.solution_name }} v${{ inputs.version }} (by @${{ github.actor }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      solution_name:
+        description: "デプロイする Solution の Unique Name。英数字と _ のみ。例: SampleSolution"
+        required: true
+        type: string
+      version:
+        description: "PRD 環境へ流すリリース候補のバージョン番号。「STG 環境へデプロイ」の実行結果かリリース候補の説明欄に掲示されている。例: 0.1.0"
+        required: true
+        type: string
+      reason:
+        description: "PRD デプロイの理由 (承認前の確認内容に表示 / 監査ログ用)"
+        required: true
+        type: string
+
+permissions:
+  actions: read     # 共通ワークフローが承認履歴を参照するため。再利用側の権限はこの呼び出し元が上限になる (設計書 07-workflow-spec.md §3.5)
+  contents: write   # 共通ワークフローの verify-and-tag job がリリース版タグを作成するため
+  id-token: write   # 共通ワークフローが OIDC を使うため
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    # 入力を見るだけの job なので、workflow 全体に宣言した共通ワークフロー向けの権限を届かせない。
+    permissions: {}
+    steps:
+      # 実行画面の "Use workflow from" では branch だけでなくタグも選べる。本設計はデプロイのたびに
+      # タグを作るため選択肢は増え続ける。選ばれた参照先の定義がそのまま走るので、main 以外はここで止める。
+      - name: Validate the workflow reference
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$WORKFLOW_REF" != "refs/heads/main" ]; then
+            echo "::error::この操作は main からのみ実行できます。Run workflow の 'Use workflow from' で main を選び直してください。受け取り: '${WORKFLOW_REF}'"
+            exit 1
+          fi
+
+      - name: Validate inputs
+        env:
+          SOLUTION_NAME: ${{ inputs.solution_name }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # tag 名と src/PP-Solutions/<name>/ のパスにそのまま展開する値なので、安全な識別子に限る (- は tag の分解を壊し、/ や .. は書き込み先を逃がす)。
+          if [[ ! "$SOLUTION_NAME" =~ ^[A-Za-z0-9_]+$ ]]; then
+            echo "::error::solution_name に使えるのは英数字とアンダースコアだけです (ハイフン・空白・記号は不可)。入力値: '${SOLUTION_NAME}'"
+            exit 1
+          fi
+          # tag 名は入力させずワークフロー側で組み立てるため、ここではバージョン番号の形式だけを見る。
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version は <MAJOR>.<MINOR>.<PATCH> 形式で入力してください (例: 0.1.0)。tag 名 (SampleSolution-v0.1.0-rc など) ではなくバージョン番号だけを入力します。入力値: '${VERSION}'"
+            exit 1
+          fi
+          echo "::notice::対象: ${SOLUTION_NAME} v${VERSION} (リリース候補 tag: ${SOLUTION_NAME}-v${VERSION}-rc)"
+          echo "::notice::リリース候補であること (成果物付き Release があること) と、PRD 環境の現行版より新しいことは続く事前チェックで検証します。"
+          echo "::notice::Environment 'prd' に reviewer が指定されている案件は、事前チェックの後に PRD リリース承認者の承認待ちになります。reviewer 未指定の案件は承認なしでそのまま進行します。"
+
+  deploy:
+    needs: guard
+    uses: ats-org1/fr-mpp-shared-workflows/.github/workflows/_reusable-deploy-prd.yml@main
+    with:
+      solution_name: ${{ inputs.solution_name }}
+      version: ${{ inputs.version }}
+      reason: ${{ inputs.reason }}
