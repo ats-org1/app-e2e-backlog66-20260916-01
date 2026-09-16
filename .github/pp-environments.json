@@ -1,13 +1,13 @@
 {
   "environments": {
     "dev": {
-      "url": "REPLACE_WITH_DEV_ENV_URL"
+      "url": "https://org7d117f31.crm7.dynamics.com/"
     },
     "stg": {
-      "url": "REPLACE_WITH_STG_ENV_URL"
+      "url": "https://org97f8bf6e.crm7.dynamics.com/"
     },
     "prd": {
-      "url": "REPLACE_WITH_PRD_ENV_URL"
+      "url": "https://orgb928b23a.crm7.dynamics.com/"
     }
   }
 }
