@@ -1,0 +1,85 @@
+{
+  "EnvironmentVariables": [
+    {
+      "SchemaName": "sample_APIBaseURLDemo",
+      "Value": "https://api.dev.contoso.com/v1",
+      "Name": {
+        "Default": "API Base URL (Demo)",
+        "ByLcid": {
+          "1041": "API Base URL (Demo)"
+        }
+      },
+      "TypeId": 100000000,
+      "IsRequired": false
+    },
+    {
+      "SchemaName": "sample_BothDemo",
+      "Value": "current-wins-value",
+      "DefaultValue": "fallback-value",
+      "Name": {
+        "Default": "Both (Demo)",
+        "ByLcid": {
+          "1041": "Both (Demo)"
+        }
+      },
+      "TypeId": 100000000,
+      "Description": {
+        "Default": "規定値と現在の値を両方設定したパターン",
+        "ByLcid": {
+          "1041": "規定値と現在の値を両方設定したパターン"
+        }
+      },
+      "IsRequired": false
+    },
+    {
+      "SchemaName": "sample_DefaultOnlyDemo",
+      "Value": "",
+      "DefaultValue": "default-only-value",
+      "Name": {
+        "Default": "Default Only (Demo)",
+        "ByLcid": {
+          "1041": "Default Only (Demo)"
+        }
+      },
+      "TypeId": 100000000,
+      "Description": {
+        "Default": "規定値あり、現在の値なしのパターン",
+        "ByLcid": {
+          "1041": "規定値あり、現在の値なしのパターン"
+        }
+      },
+      "IsRequired": false
+    },
+    {
+      "SchemaName": "sample_LongValueDemo",
+      "Value": "今日は朝から穏やかな天気で、通勤途中の公園には多くの人が集まっていた。木々の間を吹き抜ける風は心地よく、夏の終わりを感じさせる涼しさがあった。ベンチで本を読む人や散歩を楽しむ人の姿を眺めながら歩いていると、忙しい日常の中でも少し立ち止まる時間の大切さを改めて感じた。こうした何気ないひとときが、気分をリフレッシュし、新しい発想や前向きな気持ちを生み出すきっかけになるのかもしれない。[END]",
+      "Name": {
+        "Default": "Long Value (Demo)",
+        "ByLcid": {
+          "1041": "Long Value (Demo)"
+        }
+      },
+      "TypeId": 100000000,
+      "Description": {
+        "Default": "規定値なし、現在の値に200文字程度の長い文字列を設定したパターン",
+        "ByLcid": {
+          "1041": "規定値なし、現在の値に200文字程度の長い文字列を設定したパターン"
+        }
+      },
+      "IsRequired": false
+    }
+  ],
+  "ConnectionReferences": [
+    {
+      "LogicalName": "sample_E2ETeamsConnection",
+      "ConnectionId": "97c11337d1bc4572a3535569b47530c6",
+      "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_teams"
+    },
+    {
+      "LogicalName": "sample_OutlookDemo",
+      "ConnectionId": "08bf7960e04849e09c7b81ca8801f323",
+      "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+    }
+  ],
+  "CopilotAgents": []
+}

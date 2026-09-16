@@ -1,0 +1,14 @@
+<environmentvariabledefinition schemaname="sample_BothDemo">
+  <defaultvalue>fallback-value</defaultvalue>
+  <description default="規定値と現在の値を両方設定したパターン">
+    <label description="規定値と現在の値を両方設定したパターン" languagecode="1041" />
+  </description>
+  <displayname default="Both (Demo)">
+    <label description="Both (Demo)" languagecode="1041" />
+  </displayname>
+  <introducedversion>0.0.2.2</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000000</type>
+</environmentvariabledefinition>

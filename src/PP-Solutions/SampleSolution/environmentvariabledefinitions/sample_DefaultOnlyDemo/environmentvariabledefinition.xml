@@ -1,0 +1,14 @@
+<environmentvariabledefinition schemaname="sample_DefaultOnlyDemo">
+  <defaultvalue>default-only-value</defaultvalue>
+  <description default="規定値あり、現在の値なしのパターン">
+    <label description="規定値あり、現在の値なしのパターン" languagecode="1041" />
+  </description>
+  <displayname default="Default Only (Demo)">
+    <label description="Default Only (Demo)" languagecode="1041" />
+  </displayname>
+  <introducedversion>0.0.2.2</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000000</type>
+</environmentvariabledefinition>

@@ -1,0 +1,100 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{feda7124-d3eb-4dbd-ae7f-0d8df053e0bb}</formid>
+    <IntroducedVersion>1.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form headerdensity="HighWithControls">
+      <tabs>
+        <tab verticallayout="true" id="{3bea553b-437d-485d-b219-dcbb96d20b83}" IsUserDefined="1">
+          <labels>
+            <label description="全般" languagecode="1041" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section showlabel="false" showbar="false" IsUserDefined="0" id="{f408761a-24b2-46f3-a767-3736f3497909}">
+                  <labels>
+                    <label description="全般" languagecode="1041" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{44350383-0606-4b93-960e-729923806d41}">
+                        <labels>
+                          <label description="Name" languagecode="1041" />
+                        </labels>
+                        <control id="sample_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="sample_name" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{c293352f-436d-45a4-aff0-c9c58f081a57}">
+                        <labels>
+                          <label description="所有者" languagecode="1041" />
+                        </labels>
+                        <control id="ownerid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="ownerid" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+      <header id="{884b0bc5-15a5-4581-a067-a22695a1ccda}" celllabelposition="Top" columns="111" labelwidth="115" celllabelalignment="Left">
+        <rows>
+          <row>
+            <cell id="{e9bcd55b-2001-4455-badc-588997c464e1}" showlabel="false">
+              <labels>
+                <label description="" languagecode="1041" />
+              </labels>
+            </cell>
+            <cell id="{ea326607-d78b-48a0-a1f9-826198deb14b}" showlabel="false">
+              <labels>
+                <label description="" languagecode="1041" />
+              </labels>
+            </cell>
+            <cell id="{0b0aea8c-a105-49ce-838c-fdc6ca237663}" showlabel="false">
+              <labels>
+                <label description="" languagecode="1041" />
+              </labels>
+            </cell>
+          </row>
+        </rows>
+      </header>
+      <footer id="{cb9aa21e-5a4b-4668-a3ab-521e88189743}" celllabelposition="Top" columns="111" labelwidth="115" celllabelalignment="Left">
+        <rows>
+          <row>
+            <cell id="{08890ebf-6428-4ae4-96e4-c00ead0c3242}" showlabel="false">
+              <labels>
+                <label description="" languagecode="1041" />
+              </labels>
+            </cell>
+            <cell id="{3f749e2d-2fe3-4472-9c98-1fb4e1c853b8}" showlabel="false">
+              <labels>
+                <label description="" languagecode="1041" />
+              </labels>
+            </cell>
+            <cell id="{655491ed-7c24-4fd5-9809-8cee862031f3}" showlabel="false">
+              <labels>
+                <label description="" languagecode="1041" />
+              </labels>
+            </cell>
+          </row>
+        </rows>
+      </footer>
+      <DisplayConditions Order="0" FallbackForm="true">
+        <Everyone />
+      </DisplayConditions>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="情報" languagecode="1041" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="このエンティティ用のフォームです。" languagecode="1041" />
+    </Descriptions>
+  </systemform>
+</forms>

@@ -1,0 +1,13 @@
+<environmentvariabledefinition schemaname="sample_LongValueDemo">
+  <description default="規定値なし、現在の値に200文字程度の長い文字列を設定したパターン">
+    <label description="規定値なし、現在の値に200文字程度の長い文字列を設定したパターン" languagecode="1041" />
+  </description>
+  <displayname default="Long Value (Demo)">
+    <label description="Long Value (Demo)" languagecode="1041" />
+  </displayname>
+  <introducedversion>0.0.2.2</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000000</type>
+</environmentvariabledefinition>
