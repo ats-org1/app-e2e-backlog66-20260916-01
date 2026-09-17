@@ -1,0 +1,7 @@
+<botcomponentcollection schemaname="bot_componentcollection_e_2_e_backlog_66_collection">
+  <description>DEV復元検証用</description>
+  <iscustomizable>1</iscustomizable>
+  <name>E2E Backlog66 Collection</name>
+  <statecode>0</statecode>
+  <statuscode>1</statuscode>
+</botcomponentcollection>

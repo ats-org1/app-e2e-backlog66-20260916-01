@@ -81,5 +81,10 @@
       "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_office365"
     }
   ],
-  "CopilotAgents": []
+  "CopilotAgents": [
+    {
+      "AadGroupId": "00000000-0000-0000-0000-000000000000",
+      "Name": "cr9ca_e2ebacklog66agent_IRh3sR"
+    }
+  ]
 }
