@@ -72,12 +72,12 @@
   "ConnectionReferences": [
     {
       "LogicalName": "sample_E2ETeamsConnection",
-      "ConnectionId": "e68270a81e724f328ef5b73422738c87",
+      "ConnectionId": "",
       "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_teams"
     },
     {
       "LogicalName": "sample_OutlookDemo",
-      "ConnectionId": "bf9d19248c4d44e4b46d9b97b7b3e414",
+      "ConnectionId": "",
       "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_office365"
     }
   ],
