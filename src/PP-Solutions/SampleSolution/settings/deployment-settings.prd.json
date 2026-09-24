@@ -1,0 +1,90 @@
+{
+  "EnvironmentVariables": [
+    {
+      "SchemaName": "sample_APIBaseURLDemo",
+      "Value": "https://api.contoso.com/v1",
+      "Name": {
+        "Default": "API Base URL (Demo)",
+        "ByLcid": {
+          "1041": "API Base URL (Demo)"
+        }
+      },
+      "TypeId": 100000000,
+      "IsRequired": false
+    },
+    {
+      "SchemaName": "sample_BothDemo",
+      "Value": "current-wins-value",
+      "DefaultValue": "fallback-value",
+      "Name": {
+        "Default": "Both (Demo)",
+        "ByLcid": {
+          "1041": "Both (Demo)"
+        }
+      },
+      "TypeId": 100000000,
+      "Description": {
+        "Default": "規定値と現在の値を両方設定したパターン",
+        "ByLcid": {
+          "1041": "規定値と現在の値を両方設定したパターン"
+        }
+      },
+      "IsRequired": false
+    },
+    {
+      "SchemaName": "sample_DefaultOnlyDemo",
+      "Value": "",
+      "DefaultValue": "default-only-value",
+      "Name": {
+        "Default": "Default Only (Demo)",
+        "ByLcid": {
+          "1041": "Default Only (Demo)"
+        }
+      },
+      "TypeId": 100000000,
+      "Description": {
+        "Default": "規定値あり、現在の値なしのパターン",
+        "ByLcid": {
+          "1041": "規定値あり、現在の値なしのパターン"
+        }
+      },
+      "IsRequired": false
+    },
+    {
+      "SchemaName": "sample_LongValueDemo",
+      "Value": "prd-long-value",
+      "Name": {
+        "Default": "Long Value (Demo)",
+        "ByLcid": {
+          "1041": "Long Value (Demo)"
+        }
+      },
+      "TypeId": 100000000,
+      "Description": {
+        "Default": "規定値なし、現在の値に200文字程度の長い文字列を設定したパターン",
+        "ByLcid": {
+          "1041": "規定値なし、現在の値に200文字程度の長い文字列を設定したパターン"
+        }
+      },
+      "IsRequired": false
+    }
+  ],
+  "ConnectionReferences": [
+    {
+      "LogicalName": "sample_E2ETeamsConnection",
+      "ConnectionId": "",
+      "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_teams"
+    },
+    {
+      "LogicalName": "sample_OutlookDemo",
+      "ConnectionId": "",
+      "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+    }
+  ],
+  "CopilotAgents": [
+    {
+      "AadGroupId": "00000000-0000-0000-0000-000000000000",
+      "Name": "cr9ca_e2ebacklog66agent_IRh3sR"
+    }
+  ]
+}
