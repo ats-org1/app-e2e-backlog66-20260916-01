@@ -7,4 +7,5 @@
   <name>E2E Backlog66 Agent</name>
   <runtimeprovider>0</runtimeprovider>
   <template>cliagent-1.0.0</template>
+  <timezoneruleversionnumber>4</timezoneruleversionnumber>
 </bot>
